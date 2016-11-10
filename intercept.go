@@ -31,7 +31,7 @@ const (
 
 type Interceptor interface {
         ReviewClientMessage(code int, format string, args ...interface{}) ReviewResult
-        ReviewServerMessage(code int, message string)
+        ReviewServerMessage(code int, message string, err error)
 }
 
 // A InterceptClient represents a client connection to an SMTP server,
@@ -64,7 +64,7 @@ func (ti *TransparentInterceptor) ReviewClientMessage(code int, format string, a
         return ProceedCommand
 }
 
-func (ti *TransparentInterceptor) ReviewServerMessage(code int, message string) {
+func (ti *TransparentInterceptor) ReviewServerMessage(code int, message string, err error) {
 }
 
 // Dial returns a new InterceptClient connected to an SMTP server at addr.
@@ -72,6 +72,7 @@ func (ti *TransparentInterceptor) ReviewServerMessage(code int, message string) 
 func Dial(interceptor Interceptor, addr string) (*InterceptClient, error) {
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
+                interceptor.ReviewServerMessage(-1, "", err)
 		return nil, err
 	}
 	host, _, _ := net.SplitHostPort(addr)
@@ -92,7 +93,7 @@ func NewInterceptClient(interceptor Interceptor, conn net.Conn, host string) (*I
 		return nil, err
 	}
 
-        interceptor.ReviewServerMessage(code, msg)
+        interceptor.ReviewServerMessage(code, msg, err)
         
 	c := &InterceptClient{
                 Text: text, 
@@ -148,7 +149,7 @@ func (c *InterceptClient) cmd(expectCode int, format string, args ...interface{}
 	c.Text.StartResponse(id)
 	defer c.Text.EndResponse(id)
 	code, msg, err := c.Text.ReadResponse(expectCode)
-        c.intercept.ReviewServerMessage(code, msg)
+        c.intercept.ReviewServerMessage(code, msg, err)
 	return code, msg, err
 }
 
