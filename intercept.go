@@ -30,6 +30,8 @@ const (
 )
 
 type Interceptor interface {
+        ReviewClientDataError(err error)
+        ReviewClientDataBytes(bs []byte) ReviewResult
         ReviewClientMessage(code int, format string, args ...interface{}) ReviewResult
         ReviewServerMessage(code int, message string, err error)
 }
@@ -62,6 +64,13 @@ type TransparentInterceptor struct {
 
 func (ti *TransparentInterceptor) ReviewClientMessage(code int, format string, args ...interface{}) ReviewResult {
         return ProceedCommand
+}
+
+func (ti *TransparentInterceptor) ReviewClientDataBytes(bs []byte) ReviewResult {
+        return ProceedCommand
+}
+
+func (ti *TransparentInterceptor) ReviewClientDataError(err error) {
 }
 
 func (ti *TransparentInterceptor) ReviewServerMessage(code int, message string, err error) {
@@ -301,12 +310,23 @@ func (c *InterceptClient) Rcpt(to string) error {
 
 type dataCloser struct {
 	c *InterceptClient
-	io.WriteCloser
+	wc io.WriteCloser
+}
+
+func (d *dataCloser) Write(p []byte) (n int, err error) {
+        if d.c.intercept.ReviewClientDataBytes(p) == AbortCommand {
+                return 0, ErrorAbort
+        }
+        if n, err = d.wc.Write(p); err != nil {
+                d.c.intercept.ReviewClientDataError(err)
+        }
+        return
 }
 
 func (d *dataCloser) Close() error {
-	d.WriteCloser.Close()
-	_, _, err := d.c.Text.ReadResponse(250)
+	d.wc.Close()
+	code, msg, err := d.c.Text.ReadResponse(250)
+        d.c.intercept.ReviewServerMessage(code, msg, err)
 	return err
 }
 
