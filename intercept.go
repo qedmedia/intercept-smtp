@@ -308,12 +308,12 @@ func (c *InterceptClient) Rcpt(to string) error {
 	return err
 }
 
-type dataCloser struct {
+type dataWriteCloser struct {
 	c *InterceptClient
 	wc io.WriteCloser
 }
 
-func (d *dataCloser) Write(p []byte) (n int, err error) {
+func (d *dataWriteCloser) Write(p []byte) (n int, err error) {
         if d.c.intercept.ReviewClientDataBytes(p) == AbortCommand {
                 return 0, ErrorAbort
         }
@@ -323,7 +323,7 @@ func (d *dataCloser) Write(p []byte) (n int, err error) {
         return
 }
 
-func (d *dataCloser) Close() error {
+func (d *dataWriteCloser) Close() error {
 	d.wc.Close()
 	code, msg, err := d.c.Text.ReadResponse(250)
         d.c.intercept.ReviewServerMessage(code, msg, err)
@@ -339,7 +339,7 @@ func (c *InterceptClient) Data() (io.WriteCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &dataCloser{c, c.Text.DotWriter()}, nil
+	return &dataWriteCloser{c, c.Text.DotWriter()}, nil
 }
 
 // Extension reports whether an extension is support by the server.
