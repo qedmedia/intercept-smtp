@@ -94,7 +94,7 @@ func NewInterceptClient(interceptor Interceptor, conn net.Conn, host string) (*I
         if interceptor.ReviewClientMessage(220, host) == AbortCommand {
                 return nil, ErrorAbort
         }
-        
+
 	text := textproto.NewConn(conn)
 	code, msg, err := text.ReadResponse(220)
 	if err != nil {
@@ -103,15 +103,15 @@ func NewInterceptClient(interceptor Interceptor, conn net.Conn, host string) (*I
 	}
 
         interceptor.ReviewServerMessage(code, msg, err)
-        
+
 	c := &InterceptClient{
-                Text: text, 
-                conn: conn, 
-                serverName: host, 
+                Text: text,
+                conn: conn,
+                serverName: host,
                 localName: "localhost",
                 intercept: interceptor,
         }
-        
+
 	return c, nil
 }
 
@@ -150,7 +150,7 @@ func (c *InterceptClient) cmd(expectCode int, format string, args ...interface{}
         if c.intercept.ReviewClientMessage(expectCode, format, args...) == AbortCommand {
                 return 0, "", ErrorAbort
         }
-        
+
 	id, err := c.Text.Cmd(format, args...)
 	if err != nil {
 		return 0, "", err
@@ -240,10 +240,15 @@ func (c *InterceptClient) Verify(addr string) error {
 // A failed authentication closes the connection.
 // Only servers that advertise the AUTH extension support this function.
 func (c *InterceptClient) Auth(a smtp.Auth) error {
+
 	if err := c.hello(); err != nil {
 		return err
 	}
 	encoding := base64.StdEncoding
+
+	// Work around for change in Golang where they detect if server.TLS is false.
+	c.tls = true
+
 	mech, resp, err := a.Start(&smtp.ServerInfo{c.serverName, c.tls, c.auth})
 	if err != nil {
 		c.Quit()
